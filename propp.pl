@@ -1,5 +1,7 @@
 :- module(propp, [generate_initial_move/1]).
+:- use_module(world).
 
+% outlines and requirements of each proppian function.
 proppian_function(alpha, initial, req([], []), 'an introduction to the hero.').
 proppian_function(beta, absentation, req([], []), 'one of the members of a family absents themself from home.').
 proppian_function(gamma, interdiction, req([], delta), 'an interdiction is given to the hero.').
@@ -33,6 +35,14 @@ proppian_function(ex, exposure, req(l, []), 'the false hero is exposed.').
 proppian_function(t, transfiguration, req([], []), 'the hero is given a new appearance.').
 proppian_function(u, punishment, req([], []), 'the villain is punished.').
 proppian_function(w, wedding, req([], []), 'the hero receives a reward.').
+
+% what needs to be done to setup each function.
+propp_setup(alpha) :-
+	init_story_creation,
+	create_world(Start),
+	create_hero(Hero, Start).
+	
+propp_setup(beta, []).
 
 satisfies_prereqs(Moves, F) :-
 	proppian_function(F, _, Req, _),
