@@ -13,9 +13,9 @@ cleanup_ref(Refs):-
 
 %% Easier writing predicates
 write_debug_message(Message, Stuff):-
-	\+ debug_log
+	\+ debug_log, !
 	;
-	format(Message, Stuff), nl.
+	writef_line(Message, Stuff), nl.
 
 write_line(Stuff):-
 	write(Stuff), nl.
@@ -53,13 +53,33 @@ read_line_to_atom(Stream, Line, String) :-
 	read_line_to_atom(Stream, Line2, String).
 
 % ID generation
+
+alphanumeric(['Q','W','E','R','T','Y','U','I','O','P','A','S','D','F','G','H','J''K','L','Z','X','C','V','B','N','M',
+	q,w,e,r,t,y,u,i,o,p,a,s,d,f,g,h,j,k,l,z,x,c,v,b,n,m,1,2,3,4,5,6,7,8,9,0]).
+
 make_truncated_uuid(IDStr):-
-	uuid(UUID),
-	atom_string(UUID, UUIDString),
-	sub_string(UUIDString, _, 8, 0, IDStr).
+	make_uuid(UUID, 8, []),
+	atom_string(UUID, IDStr).
 
 generate_id(Name, ID):-
+	(
+		atom_length(Name, Len),
+		Len < 8,
+		NameLen = Len
+		;
+		NameLen = 8
+	),
+	sub_string(Name, _, NameLen, _, SubStr),
 	make_truncated_uuid(UUID),
-	sub_string(Name, _, 8, _, SubStr),
-	string_concat(SubStr, UUID, ID),
-	\+ (story:location(ID) ; story:character(ID)).
+	string_concat(SubStr, UUID, IDStr),
+	atom_string(ID, IDStr), !.
+	%NOTE MIGHT DOUBLE UP ON IDS
+
+make_uuid(ID, 0, ID_List) :-
+	atomic_list_concat(ID_List, '', ID).
+
+make_uuid(ID, Len, Xs) :-
+	alphanumeric(Alph),
+	random_member(X, Alph),
+	Len2 is Len-1,
+	make_uuid(ID, Len2, [X|Xs]).

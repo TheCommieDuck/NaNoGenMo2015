@@ -5,13 +5,13 @@
 
 
 %% Creation/Generation Predicates
-init_story_creation :-
-	nb_setval(story_refs, []).
+init_story_creation.
 
 assert_story(Fact) :-
-	assert(:(story, Fact), Ref),
-	nb_getval(story_refs, Refs),
-	nb_setval(story_refs, [Ref|Refs]).
+	assert(:(story, Fact)).
+
+retract_story(Fact) :-
+	retract(:(story, Fact)).
 
 create_id_name(ID, Name) :-
 	generate_id(Name, ID),
@@ -25,6 +25,12 @@ create_local_location(Name, ContainID, NameID) :-
 	create_id_name(NameID, Name),
 	assert_story(contains(ContainID, NameID)),
 	assert_story(location(NameID)).
+
+create_person(Name, ID) :-
+	create_id_name(ID, Name),
+	assert_story(character(ID)),
+	assert_story(person(ID)),
+	assert_story(need(ID, hunger, 0)).
 
 % the world has at least 1 of the following:
 % - a major city; the ruler(s) live here.
@@ -48,13 +54,11 @@ create_city(CityName, CountyID, CityGateID) :-
 
 create_hero(Hero, Start) :-
 	Hero = bob,
-	assert_story(hero(Hero)),
-	assert_story(character(Hero)),
-	assert_story(id_name(alice, 'Alice')),
-	assert_story(character(alice)),
-	assert_story(id_name(Hero, 'Bob')),
-	assert_story(location(Hero, Start)),
-	assert_story(location(alice, Start)).
+	create_person('Bob', BobID),
+	assert_story(hero(BobID)),
+	create_person('Alice', AliceID),
+	assert_story(location(BobID, Start)),
+	assert_story(location(AliceID, Start)).
 
 move(Char, Loc) :-
 	character(Char),
@@ -63,8 +67,6 @@ move(Char, Loc) :-
 	retract(location(Char, OldLoc)),
 	assert(location(Char, Loc)).
 
-
-
 step_forward :-
 	findall(X, character(X), Characters),
 	step_forward(Characters).
@@ -72,11 +74,46 @@ step_forward :-
 step_forward([]).
 
 step_forward([C|Cs]) :-
-	(step(C), ! ; write_debug_message('An error occured with stepping for ~s', [C])),
+	(step(C), ! ; write_debug_message('An error occured with stepping for %w', [C])),
 	step_forward(Cs).
 
 step(Char) :-
+	update_needs(Char),
+	pick_goal(Char, goal(Char, Action, Priority)),
 	id_name(Char, Name),
-	location(Char, Loc),
-	id_name(Loc, LocName),
-	format('~s is in the ~s and has done nothing.', [Name, LocName]), nl.
+	write_debug_message('%w picked goal %w with priority %w', [Name, Action, Priority]).
+	%perform_action(Char, Goal),
+	%format('~s is in the ~s and has done nothing.', [Name, LocName]), nl.
+
+%%% Goals
+
+update_needs(Char) :-
+	forall(need(Char, Need, Amount), update_need(Char, Need, Amount)).
+
+update_need(_, Need, _) :-
+	need_threshold(Need, 0, _, _).
+
+update_need(Char, Need, Amount) :-
+	need_threshold(Need, Incr, Threshold, Priority),
+	New_Amount is Amount + Incr,
+	retract_story(need(Char, Need, _)),
+	assert_story(need(Char, Need, New_Amount)),
+	(
+		Threshold < New_Amount,
+		\+ goal(Char, Need, _),
+		create_goal(Char, Need, Priority),
+		id_name(Char, Name),
+		write_debug_message('%w has become %w', [Name, Need])
+		;
+		true
+	).
+
+create_goal(Char, Need, Priority) :-
+	assert_story(goal(Char, Need, Priority)).
+
+pick_goal(Char, Goal) :-
+	findall(Priority, goal(Char, _, Priority), Goals),
+	max_list(Goals, Best),
+	findall(X, goal(Char, X, Best), BestGoals),
+	random_member(BestGoal, BestGoals),
+	Goal = goal(Char, BestGoal, Best).

@@ -41,6 +41,7 @@ proppian_function(w, wedding, req([], []), 'the hero receives a reward.').
 propp_setup(alpha) :-
 	init_story_creation,
 	create_world(Start),
+	write(hi), nl,
 	create_hero(Hero, Start), !.
 	
 propp_setup(beta, []).
