@@ -12,8 +12,11 @@ assert_story(Fact) :-
 
 broadcast_assert_story(Fact, Loc) :-
 	assert_story(Fact),
-	current_time(T),
 	forall((location(X, Loc), character(X)), now_believes(X, Fact)).
+
+broadcast_retract_story(Fact, Loc) :-
+	retract_story(Fact),
+	forall((location(X, Loc), character(X)), retract_all_beliefs(X, Fact)).
 
 retract_story(Fact) :-
 	retract(:(story, Fact)), !
@@ -66,6 +69,11 @@ create_city(CityName, CountyID, CityGateID) :-
 	assert_story(contains(CountyID, CityID)),
 	create_local_location('city gate', CityID, CityGateID),
 	create_random_food(_, CityGateID),
+	create_random_food(_, CityGateID),
+	create_random_food(_, CityGateID),
+	create_random_food(_, CityGateID),
+	create_random_food(_, CityGateID),
+	create_random_food(_, CityGateID),
 	create_local_location('outside the city gate', CityID, OutsideCityID),
 	assert_story(adjacent(OutsideCityID, CityGateID, west)).
 
@@ -111,6 +119,11 @@ complete_goal(Char, Action) :-
 	write_debug_message('%w has completed the goal to %w.', [Name, Action]),
 	retract_story(character_goal(Char, Action, _)).
 
+set_need(Char, Need, Amount) :-
+	retract_story(need(Char, Need, _)),
+	assert_story(need(Char, Need, Amount)),
+	check_need_threshold(Char, Need).
+
 update_needs(Char) :-
 	forall(need(Char, Need, Amount), update_need(Char, Need, Amount)).
 
@@ -118,19 +131,30 @@ update_need(_, Need, _) :-
 	need_threshold(Need, 0, _, _).
 
 update_need(Char, Need, Amount) :-
-	need_threshold(Need, Incr, Threshold, Priority),
+	need_threshold(Need, Incr, _, _),
 	New_Amount is Amount + Incr,
 	retract_story(need(Char, Need, _)),
 	assert_story(need(Char, Need, New_Amount)),
+	check_need_threshold(Char, Need).
+
+check_need_threshold(Char, Need) :-
+	need_threshold(Need, _, Threshold, Priority),
+	id_name(Char, Name),
+	need(Char, Need, Amount),
 	(
-		Threshold < New_Amount,
+		Amount >= Threshold,
 		\+ character_goal(Char, Need, _),
 		create_goal(Char, Need, Priority),
 		id_name(Char, Name),
 		write_debug_message('%w has become %w', [Name, Need])
 		;
-		true
+		Amount < Threshold,
+		character_goal(Char, Need, _),
+		complete_goal(Char, Need),
+		write_debug_message('%w is no longer %w', [Name, Need])
 	).
+
+check_need_threshold(_, _).
 
 create_goal(Char, Need, Priority) :-
 	id_name(Char, Name),
@@ -157,7 +181,9 @@ now_believes(Char, location(X, Y), Time) :-
 	assert_story(believes(Char, location(X, Y), Time)).
 
 retract_all_beliefs(Char, Belief) :-
-	retractall(:(story, believes(Char, Belief, _))).
+	retractall(:(story, believes(Char, Belief, _)))
+	;
+	true.
 
 known_about_recently(Char, Location) :-
 	known_about(Char, Location, Time),
@@ -166,9 +192,24 @@ known_about_recently(Char, Location) :-
 	Diff < 5.
 
 % Actions
+do_action(Char, eat(Item)) :-
+	id_name(Char, CName),
+	id_name(Item, IName),
+	location(Char, Loc),
+	write_debug_message('%w eats the %w.', [CName, IName]),
+	broadcast_retract_story(location(Item, _), Loc),
+	complete_goal(Char, eat(Item)),
+	set_need(Char, hunger, 0).
+
 do_action(Char, hunger) :-
 	character_goal(Char, hunger, Priority),
-	find_item_type(Char, food, Priority),
+	(
+		has_item(Char, food, Item),
+		Priority2 is Priority+2,
+		create_goal(Char, eat(Item), Priority2)
+		;
+		find_item_type(Char, food, Priority)
+	),
 	do_goal(Char).
 
 do_action(Char, thirst) :-
@@ -188,21 +229,17 @@ do_action(Char, look) :-
 do_action(Char, pick_up(Item)) :-
 	location(Char, Loc),
 	location(Item, Loc2),
-	Loc \= Loc2,
 	id_name(Char, Name),
 	id_name(Item, IName),
-	write_debug_message('%w tried to pick up the %w, but they couldn\' find it.', [Name, IName]),
-	retract_all_beliefs(Char, location(Item, Loc)).
-	%TODO: make them lose the belief the item was here
-
-do_action(Char, pick_up(Item)) :-
-	location(Char, Loc),
-	location(Item, Loc),
-	id_name(Char, Name),
-	id_name(Item, IName),
-	write_debug_message('%w picked up the %w.', [Name, IName]),
-	pick_up(Char, Item),
+	(
+		Loc = Loc2,
+		write_debug_message('%w picked up the %w.', [Name, IName]),
+		pick_up(Char, Item)
+		;
+		write_debug_message('%w tried to pick up the %w, but they couldn\' find it.', [Name, IName])
+	),
 	complete_goal(Char, pick_up(Item)).
+	
 
 do_action(Char, X) :-
 	id_name(Char, Name),
@@ -223,12 +260,13 @@ find_item_type(Char, Type, Priority) :-
 	location(Char, Location),
 	believes(Char, location(Item, Location)),
 	call_story(Type, Item),
+	Item \= Char,
 	Priority2 is Priority+1,
 	create_goal(Char, pick_up(Item), Priority2).
 
 find_item_type(Char, Type, Priority) :-
 	location(Char, Location),
-	\+ (believes(Char, location(Item, Location)), call_story(Type, Item)),
+	\+ (believes(Char, location(Item, Location)), call_story(Type, Item), Item \= Char),
 	\+ known_about_recently(Char, Location),
 	Priority2 is Priority+1,
 	create_goal(Char, look, Priority2).
@@ -237,14 +275,16 @@ find_item_type(Char, Type, Priority) :-
 find_item_type(Char, _, Priority) :-
 	location(Char, Location),
 	location(Char2, Location),
+	character(Char2),
 	Char \= Char2,
 	Priority2 is Priority+1,
 	create_goal(Char, talk(Char2), Priority2).
 
-find_item_type(Char, _, Priority) :-
+find_item_type(Char, Type, Priority) :-
 	location(Char, Location),
 	believes(Char, location(Item, Somewhere)),
-	food(Item),
+	call_story(Type, Item),
+	Char \= Item,
 	Somewhere \= Location,
 	Priority2 is Priority+1,
 	create_goal(Char, travel(Somewhere), Priority2).
@@ -256,5 +296,10 @@ find_item_type(Char, Type, Priority) :-
 
 pick_up(Char, Item) :-
 	location(Item, Loc),
+	Char \= Item,
 	retract_story(location(Item, _)),
 	broadcast_assert_story(location(Item, Char), Loc).
+
+has_item(Char, Type, Item) :-
+	location(Item, Char),
+	call_story(Type, Item).
