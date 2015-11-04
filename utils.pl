@@ -15,7 +15,7 @@ cleanup_ref(Refs):-
 write_debug_message(Message, Stuff):-
 	\+ debug_log, !
 	;
-	writef_line(Message, Stuff), nl.
+	writef_line(Message, Stuff).
 
 write_line(Stuff):-
 	write(Stuff), nl.

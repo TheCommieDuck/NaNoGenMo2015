@@ -46,3 +46,5 @@ property_name(location(X, Y), Name) :-
 	id_name(X, XName),
 	id_name(Y, YName),
 	atomic_list_concat([XName, 'is located at the', YName], ' ', Name).
+
+property_name(X, X).

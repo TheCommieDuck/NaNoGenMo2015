@@ -10,6 +10,11 @@ init_story_creation.
 assert_story(Fact) :-
 	assert(:(story, Fact)).
 
+broadcast_assert_story(Fact, Loc) :-
+	assert_story(Fact),
+	current_time(T),
+	forall((location(X, Loc), character(X)), now_believes(X, Fact)).
+
 retract_story(Fact) :-
 	retract(:(story, Fact)), !
 	;
@@ -180,6 +185,25 @@ do_action(Char, look) :-
 	assert_story(known_about(Char, Loc, Time)),
 	complete_goal(Char, look).
 
+do_action(Char, pick_up(Item)) :-
+	location(Char, Loc),
+	location(Item, Loc2),
+	Loc \= Loc2,
+	id_name(Char, Name),
+	id_name(Item, IName),
+	write_debug_message('%w tried to pick up the %w, but they couldn\' find it.', [Name, IName]),
+	retract_all_beliefs(Char, location(Item, Loc)).
+	%TODO: make them lose the belief the item was here
+
+do_action(Char, pick_up(Item)) :-
+	location(Char, Loc),
+	location(Item, Loc),
+	id_name(Char, Name),
+	id_name(Item, IName),
+	write_debug_message('%w picked up the %w.', [Name, IName]),
+	pick_up(Char, Item),
+	complete_goal(Char, pick_up(Item)).
+
 do_action(Char, X) :-
 	id_name(Char, Name),
 	write_debug_message('%w is doing %w', [Name, X]).
@@ -200,7 +224,7 @@ find_item_type(Char, Type, Priority) :-
 	believes(Char, location(Item, Location)),
 	call_story(Type, Item),
 	Priority2 is Priority+1,
-	create_goal(Char, pick_up, Priority2).
+	create_goal(Char, pick_up(Item), Priority2).
 
 find_item_type(Char, Type, Priority) :-
 	location(Char, Location),
@@ -229,3 +253,8 @@ find_item_type(Char, Type, Priority) :-
 	\+ (believes(Char, location(Item, _)), call_story(Type, Item)),
 	Priority2 is Priority+1,
 	create_goal(Char, explore, Priority2).
+
+pick_up(Char, Item) :-
+	location(Item, Loc),
+	retract_story(location(Item, _)),
+	broadcast_assert_story(location(Item, Char), Loc).
