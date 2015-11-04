@@ -1,6 +1,7 @@
 :- module(story, [
 	goal/3, need/3, need_threshold/4,
-	character/1, location/1,
+	character/1, location/1, food/1, beverage/1,
+	believes/2,
 	location/2, id_name/2, adjacent/3]).
 
 :- use_module(utils).
@@ -11,8 +12,12 @@
 :- dynamic adjacent/3.
 :- dynamic id_name/2.
 
+:- dynamic believes/2.
 :- dynamic need/3.
 :- dynamic goal/3.
+
+:- dynamic food/1.
+:- dynamic beverage/1.
 
 opposite_direction(west, east).
 opposite_direction(north, south).
@@ -25,6 +30,6 @@ adjacent(X, Y, Dir) :-
 	opposite_direction(Dir, Dir2),
 	fact(adjacent(Y, X, Dir2)).
 
-need_threshold(hunger, 0.1, 0.5, 30).
+need_threshold(hunger, 0.3, 0.5, 300).
 
 goal(_, wait, -42).

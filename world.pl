@@ -45,10 +45,17 @@ create_world(Start) :-
 
 % a city currently consists of something similar to the world gen - it's guaranteed 1 of things, then optionally some other things.
 
+create_random_food(FoodID, LocID) :-
+	random_line_from_file('food.txt', 38358, '\t', [_, _, Name]),
+	create_id_name(FoodID, Name),
+	assert_story(food(FoodID)),
+	assert_story(location(FoodID, LocID)).
+
 create_city(CityName, CountyID, CityGateID) :-
 	create_region(CityName, CityID),
 	assert_story(contains(CountyID, CityID)),
 	create_local_location('city gate', CityID, CityGateID),
+	create_random_food(FoodID, CityGateID),
 	create_local_location('outside the city gate', CityID, OutsideCityID),
 	assert_story(adjacent(OutsideCityID, CityGateID, west)).
 
@@ -79,13 +86,15 @@ step_forward([C|Cs]) :-
 
 step(Char) :-
 	update_needs(Char),
-	pick_goal(Char, goal(Char, Action, Priority)),
-	id_name(Char, Name),
-	write_debug_message('%w picked goal %w with priority %w', [Name, Action, Priority]).
+	do_goal(Char).
 	%perform_action(Char, Goal),
 	%format('~s is in the ~s and has done nothing.', [Name, LocName]), nl.
 
 %%% Goals
+
+do_goal(Char) :-
+	pick_goal(Char, goal(Char, Action, Priority)),
+	do_action(Char, Action).
 
 update_needs(Char) :-
 	forall(need(Char, Need, Amount), update_need(Char, Need, Amount)).
@@ -109,6 +118,7 @@ update_need(Char, Need, Amount) :-
 	).
 
 create_goal(Char, Need, Priority) :-
+	write_debug_message('Added a new goal: %w is now trying to %w', [Char, Need]),
 	assert_story(goal(Char, Need, Priority)).
 
 pick_goal(Char, Goal) :-
@@ -117,3 +127,60 @@ pick_goal(Char, Goal) :-
 	findall(X, goal(Char, X, Best), BestGoals),
 	random_member(BestGoal, BestGoals),
 	Goal = goal(Char, BestGoal, Best).
+
+% Actions
+do_action(Char, hunger) :-
+	goal(Char, hunger, Priority),
+	find_item_type(Char, food, Priority),
+	do_goal(Char).
+
+do_action(Char, thirst) :-
+	goal(Char, hunger, Priority),
+	find_item_type(Char, beverage, Priority),
+	do_goal(Char).
+
+do_action(Char, X) :-
+	id_name(Char, Name),
+	write_debug_message('%w is doing %w', [Name, X]).
+
+% to find an item:
+% if the character recently thinks the item is in their location, go and pick it up. 
+% Action: pick up item.
+% if the character does not know if the item is nearby, then look.
+% Action: look around.
+% if the character can see another character, ask them.
+% Action: talk.
+% if the character thinks there is an item of that type SOMEWHERE, pick the closest one and start going there, checking along the way.
+% Action: travel.
+% if the character has no idea, then attempt to find someone and ask.
+% Action: explore.
+find_item_type(Char, Type, Priority) :-
+	location(Char, Location),
+	believes(Char, location(Item, Location)),
+	call(Type, Item),
+	Priority2 is Priority+1,
+	create_goal(Char, pick_up, Priority2).
+
+find_item_type(Char, Type, Priority) :-
+	location(Char, Location),
+	\+ (believes(Char, location(Item, Location)), call(Type, Item)),
+	Priority2 is Priority+1,
+	create_goal(Char, look, Priority2).
+
+% characters can always see other characters in the same place.
+find_item_type(Char, Type, Priority) :-
+	location(Char, Location),
+	location(Char2, Location),
+	Char \= Char2,
+	create_goal(Char, talk(Char2), Priority2).
+
+find_item_type(Char, Type, Priority) :-
+	location(Char, Location),
+	believes(Char, location(Item, Somewhere)),
+	food(Item),
+	create_goal(Char, travel(Somewhere), Priority2).
+
+find_item_type(Char, Type, Priority) :-
+	location(Char, Location),
+	\+ (believes(Char, location(Item, _)), call(Type, Item)),
+	create_goal(Char, explore, Priority2).
