@@ -11,7 +11,12 @@ assert_story(Fact) :-
 	assert(:(story, Fact)).
 
 retract_story(Fact) :-
-	retract(:(story, Fact)).
+	retract(:(story, Fact)), !
+	;
+	true.
+
+call_story(Thing, Thing2) :-
+	call(:(story, Thing), Thing2).
 
 create_id_name(ID, Name) :-
 	generate_id(Name, ID),
@@ -55,7 +60,7 @@ create_city(CityName, CountyID, CityGateID) :-
 	create_region(CityName, CityID),
 	assert_story(contains(CountyID, CityID)),
 	create_local_location('city gate', CityID, CityGateID),
-	create_random_food(FoodID, CityGateID),
+	create_random_food(_, CityGateID),
 	create_local_location('outside the city gate', CityID, OutsideCityID),
 	assert_story(adjacent(OutsideCityID, CityGateID, west)).
 
@@ -93,8 +98,13 @@ step(Char) :-
 %%% Goals
 
 do_goal(Char) :-
-	pick_goal(Char, goal(Char, Action, Priority)),
+	pick_goal(Char, character_goal(Char, Action, _)),
 	do_action(Char, Action).
+
+complete_goal(Char, Action) :-
+	id_name(Char, Name),
+	write_debug_message('%w has completed the goal to %w.', [Name, Action]),
+	retract_story(character_goal(Char, Action, _)).
 
 update_needs(Char) :-
 	forall(need(Char, Need, Amount), update_need(Char, Need, Amount)).
@@ -109,7 +119,7 @@ update_need(Char, Need, Amount) :-
 	assert_story(need(Char, Need, New_Amount)),
 	(
 		Threshold < New_Amount,
-		\+ goal(Char, Need, _),
+		\+ character_goal(Char, Need, _),
 		create_goal(Char, Need, Priority),
 		id_name(Char, Name),
 		write_debug_message('%w has become %w', [Name, Need])
@@ -118,26 +128,57 @@ update_need(Char, Need, Amount) :-
 	).
 
 create_goal(Char, Need, Priority) :-
-	write_debug_message('Added a new goal: %w is now trying to %w', [Char, Need]),
-	assert_story(goal(Char, Need, Priority)).
+	id_name(Char, Name),
+	write_debug_message('Added a new goal: %w is now trying to %w', [Name, Need]),
+	assert_story(character_goal(Char, Need, Priority)).
 
 pick_goal(Char, Goal) :-
-	findall(Priority, goal(Char, _, Priority), Goals),
+	findall(Priority, character_goal(Char, _, Priority), Goals),
 	max_list(Goals, Best),
-	findall(X, goal(Char, X, Best), BestGoals),
+	findall(X, character_goal(Char, X, Best), BestGoals),
 	random_member(BestGoal, BestGoals),
-	Goal = goal(Char, BestGoal, Best).
+	Goal = character_goal(Char, BestGoal, Best).
+
+% beliefs
+now_believes(Char, Thing) :-
+	current_time(Time),
+	id_name(Char, Name),
+	property_name(Thing, TName),
+	write_debug_message('%w now believes that %w', [Name, TName]),
+	now_believes(Char, Thing, Time).
+
+now_believes(Char, location(X, Y), Time) :-
+	retract_all_beliefs(Char, location(X, _)),
+	assert_story(believes(Char, location(X, Y), Time)).
+
+retract_all_beliefs(Char, Belief) :-
+	retractall(:(story, believes(Char, Belief, _))).
+
+known_about_recently(Char, Location) :-
+	known_about(Char, Location, Time),
+	current_time(CTime),
+	Diff is CTime - Time, !,
+	Diff < 5.
 
 % Actions
 do_action(Char, hunger) :-
-	goal(Char, hunger, Priority),
+	character_goal(Char, hunger, Priority),
 	find_item_type(Char, food, Priority),
 	do_goal(Char).
 
 do_action(Char, thirst) :-
-	goal(Char, hunger, Priority),
+	character_goal(Char, hunger, Priority),
 	find_item_type(Char, beverage, Priority),
 	do_goal(Char).
+
+do_action(Char, look) :-
+	location(Char, Loc),
+	findall(X, location(X, Loc), Things),
+	forall(member(Thing, Things), now_believes(Char, location(Thing, Loc))),
+	current_time(Time),
+	retract_story(known_about(Char, Loc, _)),
+	assert_story(known_about(Char, Loc, Time)),
+	complete_goal(Char, look).
 
 do_action(Char, X) :-
 	id_name(Char, Name),
@@ -157,30 +198,34 @@ do_action(Char, X) :-
 find_item_type(Char, Type, Priority) :-
 	location(Char, Location),
 	believes(Char, location(Item, Location)),
-	call(Type, Item),
+	call_story(Type, Item),
 	Priority2 is Priority+1,
 	create_goal(Char, pick_up, Priority2).
 
 find_item_type(Char, Type, Priority) :-
 	location(Char, Location),
-	\+ (believes(Char, location(Item, Location)), call(Type, Item)),
+	\+ (believes(Char, location(Item, Location)), call_story(Type, Item)),
+	\+ known_about_recently(Char, Location),
 	Priority2 is Priority+1,
 	create_goal(Char, look, Priority2).
 
 % characters can always see other characters in the same place.
-find_item_type(Char, Type, Priority) :-
+find_item_type(Char, _, Priority) :-
 	location(Char, Location),
 	location(Char2, Location),
 	Char \= Char2,
+	Priority2 is Priority+1,
 	create_goal(Char, talk(Char2), Priority2).
 
-find_item_type(Char, Type, Priority) :-
+find_item_type(Char, _, Priority) :-
 	location(Char, Location),
 	believes(Char, location(Item, Somewhere)),
 	food(Item),
+	Somewhere \= Location,
+	Priority2 is Priority+1,
 	create_goal(Char, travel(Somewhere), Priority2).
 
 find_item_type(Char, Type, Priority) :-
-	location(Char, Location),
-	\+ (believes(Char, location(Item, _)), call(Type, Item)),
+	\+ (believes(Char, location(Item, _)), call_story(Type, Item)),
+	Priority2 is Priority+1,
 	create_goal(Char, explore, Priority2).

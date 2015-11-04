@@ -1,8 +1,9 @@
 :- module(story, [
-	goal/3, need/3, need_threshold/4,
+	character_goal/3, need/3, need_threshold/4,
 	character/1, location/1, food/1, beverage/1,
-	believes/2,
-	location/2, id_name/2, adjacent/3]).
+	believes/2, known_about/3,
+	current_time/1, 
+	location/2, id_name/2, property_name/2, adjacent/3]).
 
 :- use_module(utils).
 
@@ -12,12 +13,19 @@
 :- dynamic adjacent/3.
 :- dynamic id_name/2.
 
-:- dynamic believes/2.
+:- dynamic believes/3.
 :- dynamic need/3.
-:- dynamic goal/3.
+:- dynamic character_goal/3.
 
 :- dynamic food/1.
 :- dynamic beverage/1.
+
+:- dynamic known_about/3.
+
+believes(Char, Thing) :-
+	believes(Char, Thing, _).
+
+current_time(1).
 
 opposite_direction(west, east).
 opposite_direction(north, south).
@@ -32,4 +40,9 @@ adjacent(X, Y, Dir) :-
 
 need_threshold(hunger, 0.3, 0.5, 300).
 
-goal(_, wait, -42).
+character_goal(_, wait, -42).
+
+property_name(location(X, Y), Name) :-
+	id_name(X, XName),
+	id_name(Y, YName),
+	atomic_list_concat([XName, 'is located at the', YName], ' ', Name).
