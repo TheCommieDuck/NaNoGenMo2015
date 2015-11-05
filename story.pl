@@ -6,11 +6,12 @@
 	contains/2,
 	story_precondition/1,
 	hero/1, region/1,
-	location/2, id_name/2, property_name/2, adjacent/3]).
+	location/2, central_location/2, id_name/2, property_name/2, adjacent/3]).
 
 :- use_module(utils).
 
 :- dynamic character/1.
+:- dynamic character/2.
 :- dynamic location/2.
 :- dynamic location/1.
 :- dynamic adjacent/3.
@@ -21,6 +22,12 @@
 :- dynamic believes/3.
 :- dynamic need/3.
 :- dynamic character_goal/3.
+
+:- dynamic central_location/2.
+
+:- dynamic sibling/2.
+:- dynamic mother/2.
+:- dynamic father/2.
 
 :- dynamic story_precondition/1.
 :- dynamic hero/1.
@@ -73,3 +80,9 @@ property_name(location(X, Y), Name) :-
 	atomic_list_concat([XName, 'is located at the', YName], ' ', Name).
 
 property_name(X, X).
+
+character(X) :-
+	character(X, alive).
+
+dead(X) :-
+	character(X, dead).

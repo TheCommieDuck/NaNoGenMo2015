@@ -43,9 +43,21 @@ create_local_location(Name, ContainID, NameID) :-
 	assert_story(location(NameID)).
 
 create_person(Name, ID) :-
+	create_person(Name, ID, alive).
+
+create_person(Name, ID, Alive) :-
 	create_id_name(ID, Name),
-	assert_story(character(ID)),
+	assert_story(character(ID, Alive)),
 	assert_story(person(ID)),
+	(
+		Alive = alive,
+		create_needs(ID)
+		;
+		true
+	).
+	
+
+create_needs(ID) :-
 	assert_story(need(ID, hunger, 0)).
 
 % the world has at least 1 of the following:
@@ -71,6 +83,9 @@ create_city(CityName, CountyID, CityGateID) :-
 	create_region(CityName, CityID),
 	assert_story(contains(CountyID, CityID)),
 	create_local_location('city gate', CityID, CityGateID),
+	create_local_location('city square', CityID, CitySquareID),
+	assert_story(adjacent(CitySquareID, CityGateID, east)),
+	assert_story(central_location(CitySquareID, CityID)),
 	create_random_food(_, CityGateID),
 	create_local_location('outside the city gate', CityID, OutsideCityID),
 	assert_story(adjacent(OutsideCityID, CityGateID, west)).
@@ -79,9 +94,44 @@ create_hero(Hero, Start) :-
 	Hero = bob,
 	create_person('Bob', BobID),
 	assert_story(hero(BobID)),
-	create_person('Alice', AliceID),
-	assert_story(location(BobID, Start)),
-	assert_story(location(AliceID, Start)).
+	random_member(MChance, [dead,alive,alive,alive,alive]),
+	(
+		MChance = dead,
+		FChance is alive
+		;
+		random_member(FChance, [dead,alive,alive,alive,alive])
+	),
+	SNum is random(3),
+	create_family(BobID, MChance, MID, FChance, FID, SNum).
+
+create_family(Char, MotherStatus, MID, FatherStatus, FID, SiblingNo) :-
+	create_person('Mother', MID, MotherStatus),
+	create_person('Father', FID, FatherStatus),
+	assert_story(mother(Char, MID)),
+	assert_story(father(Char, FID)),
+	create_siblings(Char, MID, FID, SiblingNo, Siblings),
+	generate_id('family', FamID),
+	assert_story(family(FamID, [MID, FID, Char|Siblings])),
+	(
+		FatherStatus = dead,
+		Homeowner = MID
+		;
+		Homeowner = FID
+	),
+	central_location(Loc, _),
+	create_family_home(MID, Loc).
+
+create_family_home
+create_siblings(_, _, _, 0, []).
+create_siblings(Char, MID, FID, SiblingNo, [SID|Sibs]) :-
+	random_member(FChance, [dead,alive,alive,alive,alive]),
+	create_person('Sibling', SID, FChance),
+	assert_story(sibling(Char, SID)),
+	assert_story(mother(SID, MID)),
+	assert_story(father(SID, FID)),
+	Sib2 is SiblingNo-1,
+	create_siblings(Char, MID, FID, Sib2, Sibs).
+
 
 move(Char, Loc) :-
 	character(Char),
@@ -99,7 +149,6 @@ step_forward :-
 check_preconditions([]).
 
 check_preconditions([C|Cs]) :-
-	
 	(
 		\+ C, !
 		;

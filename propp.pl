@@ -48,9 +48,9 @@ propp_setup(beta) :-
 	hero(Hero),
 	region(R),
 	random_member(Func, [add_story_precondition(not(location(Hero, R)))]),
-	call(world:Func).
+	call(world:Func),!.
 	
-propp_setup(beta, []).
+propp_setup(X).
 
 satisfies_prereqs(Moves, F) :-
 	proppian_function(F, _, Req, _),
