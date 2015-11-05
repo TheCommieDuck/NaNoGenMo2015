@@ -1,5 +1,5 @@
 :- module(utils, [write_line/1, write_line/2, writef_line/2, write_debug_message/2,
-	fact/1,
+	fact/1, fact_story/1,
 	generate_id/2,
 	random_line_from_file/3, random_line_from_file/4]).
 
@@ -7,6 +7,8 @@ debug_log.
 
 fact(Fact):-
 	clause(Fact, true).
+fact_story(Fact) :-
+	clause(:(story, Fact), true).
 
 cleanup_ref(Refs):-
 	forall(member(X, Refs), erase(X)).

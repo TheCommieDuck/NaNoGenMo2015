@@ -1,4 +1,4 @@
-:- module(world, [create_world/1, create_hero/2, init_story_creation/0]).
+:- module(world, [create_world/1, create_hero/2, init_story_creation/0, add_story_precondition/1]).
 
 :- use_module(utils).
 :- use_module(story).
@@ -6,6 +6,9 @@
 
 %% Creation/Generation Predicates
 init_story_creation.
+
+add_story_precondition(Cond) :-
+	assert_story(story_precondition(Cond)).
 
 assert_story(Fact) :-
 	assert(:(story, Fact)).
@@ -69,11 +72,6 @@ create_city(CityName, CountyID, CityGateID) :-
 	assert_story(contains(CountyID, CityID)),
 	create_local_location('city gate', CityID, CityGateID),
 	create_random_food(_, CityGateID),
-	create_random_food(_, CityGateID),
-	create_random_food(_, CityGateID),
-	create_random_food(_, CityGateID),
-	create_random_food(_, CityGateID),
-	create_random_food(_, CityGateID),
 	create_local_location('outside the city gate', CityID, OutsideCityID),
 	assert_story(adjacent(OutsideCityID, CityGateID, west)).
 
@@ -93,8 +91,23 @@ move(Char, Loc) :-
 	assert(location(Char, Loc)).
 
 step_forward :-
+	findall(P, story_precondition(P), Conds),
+	check_preconditions(Conds),
 	findall(X, character(X), Characters),
 	step_forward(Characters).
+
+check_preconditions([]).
+
+check_preconditions([C|Cs]) :-
+	
+	(
+		\+ C, !
+		;
+		C,
+		retract_story(C),
+		write_debug_message('Story condition %w has been satisfied', [C])
+	),
+	check_preconditions(Cs).
 
 step_forward([]).
 

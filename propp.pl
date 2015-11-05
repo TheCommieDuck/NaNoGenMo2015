@@ -1,5 +1,6 @@
 :- module(propp, [generate_initial_move/1]).
 :- use_module(world).
+:- use_module(story).
 :- use_module(utils).
 
 % outlines and requirements of each proppian function.
@@ -41,8 +42,13 @@ proppian_function(w, wedding, req([], []), 'the hero receives a reward.').
 propp_setup(alpha) :-
 	init_story_creation,
 	create_world(Start),
-	write(hi), nl,
 	create_hero(Hero, Start), !.
+
+propp_setup(beta) :-
+	hero(Hero),
+	region(R),
+	random_member(Func, [add_story_precondition(not(location(Hero, R)))]),
+	call(world:Func).
 	
 propp_setup(beta, []).
 
