@@ -39,7 +39,7 @@ create_region(RegionName, RegionID) :-
 
 create_local_location(Name, ContainID, NameID) :-
 	create_id_name(NameID, Name),
-	assert_story(contains(ContainID, NameID)),
+	assert_story(location(NameID, ContainID)),
 	assert_story(location(NameID)).
 
 create_person(Name, ID) :-
@@ -55,18 +55,13 @@ create_person(Name, ID, Alive) :-
 		;
 		true
 	).
-	
 
 create_needs(ID) :-
 	assert_story(need(ID, hunger, 0)).
 
-% the world has at least 1 of the following:
-% - a major city; the ruler(s) live here.
-% - a wilderness (forest, etc)
-% - a small town/village. rural.
-% - potentially some more, but guaranteed one of each of the above.
+% the world is currently pregenned:
+% see this MSPaint drawing: http://i.imgur.com/biyGMVB.png
 create_world(Start) :-
-	%the world is set in 1 region. It'll be a single world. Each major city is a separate state.
 	random_line_from_file('tac.csv', 48424, ',', [CityName, County]),
 	create_region(County, CountyID),
 	create_city(CityName, CountyID, Start).
@@ -79,7 +74,44 @@ create_random_food(FoodID, LocID) :-
 	assert_story(food(FoodID)),
 	assert_story(location(FoodID, LocID)).
 
-create_city(CityName, CountyID, CityGateID) :-
+create_castle(Place, _, ID) :-
+	create_local_location('castle', Place, ID).
+create_house(Place, _, ID) :-
+	create_local_location('house', Place, ID).
+
+create_city(CityName, CountyID, OutsideCityID) :-
+	create_region(CityName, CityID),
+	assert_story(location(CityID, CountyID)),
+	create_local_location('city gate', CityID, CityGateID),
+	create_local_location('outside the city gate', CityID, OutsideCityID),
+	assert_story(adjacent(OutsideCityID, west, CityGateID)),
+	create_local_location('city square', CityID, CitySquareID),
+	assert_story(adjacent(CityGateID, west, CitySquareID)),
+	create_castle(CityID, west, CastleID),
+	assert_story(adjacent(CitySquareID, west, CastleID)),
+
+	create_local_location('north district', CityID, NDID),
+	assert_story(adjacent(NDID, north, CitySquareID)),
+	create_house(CityID, east, H1),
+	assert_story(adjacent(H1, west, NDID)),
+	create_house(CityID, west, H2),
+	assert_story(adjacent(H2, east, NDID)),
+	create_house(CityID, north_east, H3),
+	assert_story(adjacent(H3, south_west, NDID)),
+	create_house(CityID, north_west, H4),
+	assert_story(adjacent(H4, south_east, NDID)),
+
+	create_local_location('south district', CityID, SDID),
+	assert_story(adjacent(SDID, south, CitySquareID)),
+	create_house(CityID, east, H5),
+	assert_story(adjacent(H5, west, SDID)),
+	create_house(CityID, north_east, H6),
+	assert_story(adjacent(H6, south_west, SDID)),
+	create_house(CityID, south_west, H7),
+	assert_story(adjacent(H7, north_east, SDID)).
+
+
+/*
 	create_region(CityName, CityID),
 	assert_story(contains(CountyID, CityID)),
 	create_local_location('city gate', CityID, CityGateID),
@@ -89,23 +121,25 @@ create_city(CityName, CountyID, CityGateID) :-
 	create_random_food(_, CityGateID),
 	create_local_location('outside the city gate', CityID, OutsideCityID),
 	assert_story(adjacent(OutsideCityID, CityGateID, west)).
-
+*/
 create_hero(Hero, Start) :-
 	Hero = bob,
 	create_person('Bob', BobID),
 	assert_story(hero(BobID)),
-	random_member(MChance, [dead,alive,alive,alive,alive]),
+	assert_story(location(BobID, Start)).
+	/*random_member(MChance, [dead,alive,alive,alive,alive]),
 	(
 		MChance = dead,
-		FChance is alive
+		FChance = alive
 		;
 		random_member(FChance, [dead,alive,alive,alive,alive])
 	),
 	SNum is random(3),
-	create_family(BobID, MChance, MID, FChance, FID, SNum).
+	create_family(BobID, MChance, MID, FChance, FID, SNum).*/
 
 create_family(Char, MotherStatus, MID, FatherStatus, FID, SiblingNo) :-
-	create_person('Mother', MID, MotherStatus),
+	true.
+	/*create_person('Mother', MID, MotherStatus),
 	create_person('Father', FID, FatherStatus),
 	assert_story(mother(Char, MID)),
 	assert_story(father(Char, FID)),
@@ -119,9 +153,9 @@ create_family(Char, MotherStatus, MID, FatherStatus, FID, SiblingNo) :-
 		Homeowner = FID
 	),
 	central_location(Loc, _),
-	create_family_home(MID, Loc).
+	create_family_home(MID, Loc).*/
 
-create_family_home
+create_family_home(_, _).
 create_siblings(_, _, _, 0, []).
 create_siblings(Char, MID, FID, SiblingNo, [SID|Sibs]) :-
 	random_member(FChance, [dead,alive,alive,alive,alive]),
@@ -132,13 +166,6 @@ create_siblings(Char, MID, FID, SiblingNo, [SID|Sibs]) :-
 	Sib2 is SiblingNo-1,
 	create_siblings(Char, MID, FID, Sib2, Sibs).
 
-
-move(Char, Loc) :-
-	character(Char),
-	location(Char, OldLoc),
-	adjacent(Loc, OldLoc, _),
-	retract(location(Char, OldLoc)),
-	assert(location(Char, Loc)).
 
 step_forward :-
 	findall(P, story_precondition(P), Conds),

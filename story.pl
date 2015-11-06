@@ -42,33 +42,21 @@ believes(Char, Thing) :-
 
 current_time(1).
 
-contains(X, Y) :-
-	fact_story(contains(X, Z)),
-	X \= Z,
-	contains(Z, Y).
-
-contains(X, Y) :-
-	\+ location(Y),
-	location(Y, Z),
-	contains(X, Z).
-
-contains(X, X).
-
 location(X, Y) :-
 	region(Y),
 	fact_story(location(X, Loc)),
-	contains(Y, Loc).
+	location(Loc, Y).
 
 opposite_direction(west, east).
 opposite_direction(north, south).
-opposite_direction(north-west, south_east).
+opposite_direction(north_west, south_east).
 opposite_direction(north_east, south_west).
 opposite_direction(X, Y) :-
 	fact_story(opposite_direction(Y, X)).
 
-adjacent(X, Y, Dir) :-
+adjacent(X, Dir, Y) :-
 	opposite_direction(Dir, Dir2),
-	fact_story(adjacent(Y, X, Dir2)).
+	fact_story(adjacent(Y, Dir2, X)).
 
 need_threshold(hunger, 0.3, 0.5, 300).
 
