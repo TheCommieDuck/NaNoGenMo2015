@@ -41,16 +41,75 @@ proppian_function(w, wedding, req([], []), 'the hero receives a reward.').
 % what needs to be done to setup each function.
 propp_setup(alpha) :-
 	init_story_creation,
-	create_world(Start),
-	create_hero(Hero, Start), !.
+	create_world(_),
+	populate_world.
 
 propp_setup(beta) :-
 	hero(Hero),
-	region(R),
-	random_member(Func, [add_story_precondition(not(location(Hero, R)))]),
-	call(world:Func),!.
+	village(R),
+	random_member(Func, [add_story_precondition(not(encompassed_by(Hero, R)))]),
+	call(world:Func).
 	
 propp_setup(X).
+
+create_story :-
+	generate_initial_move(Moves),
+	start_move(Moves).
+
+write_initial_description :-
+	village(VID),
+	hero(HID),
+	encompassed_by(HID, VID),
+	encompassed_by(VID, KID),
+	id_name(VID, V),
+	id_name(KID, K),
+	id_name(HID, H),
+	generate_description(HID, HD),
+	pronoun(HID, HP),
+	writef('Once upon a time in the Kingdom of %w, in the small village of %w, lived %w. %w. %w lived with %w.', [K, V, H, HD, HP, HP]).
+
+pronoun(ID, he) :-
+	male(ID).
+
+pronoun(ID, she) :-
+	female(ID).
+
+pronoun(ID, they) :-
+	character(ID).
+
+pronoun(_, it).
+
+generate_description(ID, Desc) :-
+
+start_move([]).
+
+start_move([Move1|Moves]) :-
+	propp_setup(Move1), !,
+	assert(propp:story_remains(Moves)),
+	(
+		Move1 = alpha, !,
+		write_initial_description,
+		start_move(Moves)
+		;
+		continue_plot(Continue),
+		(
+			Continue = n, !
+			;
+			retract(propp:story_remains(_)),
+			start_move(Moves)
+		)
+	).
+
+continue_story :-
+	continue_plot(Cont),
+	(
+		Continue = n
+		;
+		story_remains(Moves),
+		retract(propp:story_remains(_)),
+		start_move(Moves)
+	).
+
 
 satisfies_prereqs(Moves, F) :-
 	proppian_function(F, _, Req, _),

@@ -1,4 +1,4 @@
-:- module(world, [create_world/1, create_hero/2, init_story_creation/0, add_story_precondition/1]).
+:- module(world, [create_world/1, populate_world/0, init_story_creation/0, add_story_precondition/1, continue_plot/1]).
 
 :- use_module(utils).
 :- use_module(story).
@@ -39,7 +39,7 @@ create_region(RegionName, RegionID) :-
 
 create_local_location(Name, ContainID, NameID) :-
 	create_id_name(NameID, Name),
-	assert_story(location(NameID, ContainID)),
+	assert_story(encompassed_by(NameID, ContainID)),
 	assert_story(location(NameID)).
 
 create_person(Name, ID) :-
@@ -61,10 +61,14 @@ create_needs(ID) :-
 
 % the world is currently pregenned:
 % see this MSPaint drawing: http://i.imgur.com/biyGMVB.png
-create_world(Start) :-
+create_world(_) :-
 	random_line_from_file('tac.csv', 48424, ',', [CityName, County]),
+	random_line_from_file('tac.csv', 48424, ',', [VillageName, _]),
 	create_region(County, CountyID),
-	create_city(CityName, CountyID, Start).
+	create_city(CityName, C1, CountyID),
+	create_village(VillageName, V1, CountyID),
+	assert_story(adjacent(V1, west, C1)).
+
 
 % a city currently consists of something similar to the world gen - it's guaranteed 1 of things, then optionally some other things.
 
@@ -76,12 +80,25 @@ create_random_food(FoodID, LocID) :-
 
 create_castle(Place, _, ID) :-
 	create_local_location('castle', Place, ID).
-create_house(Place, _, ID) :-
-	create_local_location('house', Place, ID).
 
-create_city(CityName, CountyID, OutsideCityID) :-
+create_house(Place, _, ID) :-
+	create_local_location('house', Place, ID),
+	assert_story(house(ID)).
+
+create_village(VillageName, VillageID, CountyID) :-
+	create_region(VillageName, VillageID),
+	assert_story(village(VillageID)),
+	assert_story(encompassed_by(VillageID, CountyID)),
+	create_local_location('village square', VillageID, VSID),
+	create_house(VillageID, east, H1),
+	assert_story(adjacent(H1, west, VSID)),
+	create_house(VillageID, west, H2),
+	assert_story(adjacent(H2, east, VSID)).
+
+
+create_city(CityName, OutsideCityID, CountyID) :-
 	create_region(CityName, CityID),
-	assert_story(location(CityID, CountyID)),
+	assert_story(encompassed_by(CityID, CountyID)),
 	create_local_location('city gate', CityID, CityGateID),
 	create_local_location('outside the city gate', CityID, OutsideCityID),
 	assert_story(adjacent(OutsideCityID, west, CityGateID)),
@@ -111,61 +128,58 @@ create_city(CityName, CountyID, OutsideCityID) :-
 	assert_story(adjacent(H7, north_east, SDID)).
 
 
-/*
-	create_region(CityName, CityID),
-	assert_story(contains(CountyID, CityID)),
-	create_local_location('city gate', CityID, CityGateID),
-	create_local_location('city square', CityID, CitySquareID),
-	assert_story(adjacent(CitySquareID, CityGateID, east)),
-	assert_story(central_location(CitySquareID, CityID)),
-	create_random_food(_, CityGateID),
-	create_local_location('outside the city gate', CityID, OutsideCityID),
-	assert_story(adjacent(OutsideCityID, CityGateID, west)).
-*/
-create_hero(Hero, Start) :-
-	Hero = bob,
+assign_home(OwnerFam, Home) :-
+	assert_story(owner(OwnerFam, Home)),
+	forall((family(OwnerFam, People), member(X, People)), (assert_story(location(X, Home)))).
+
+populate_world :-
+	findall(H, house(H), Houses),
 	create_person('Bob', BobID),
 	assert_story(hero(BobID)),
-	assert_story(location(BobID, Start)).
-	/*random_member(MChance, [dead,alive,alive,alive,alive]),
-	(
-		MChance = dead,
-		FChance = alive
-		;
-		random_member(FChance, [dead,alive,alive,alive,alive])
-	),
-	SNum is random(3),
-	create_family(BobID, MChance, MID, FChance, FID, SNum).*/
+	create_family(BobID, _, _, 2, FamID),
+	member(HeroHouse, Houses),
+	encompassed_by(HeroHouse, Loc),
+	village(Loc),
+	assign_home(FamID, HeroHouse),
+	delete(Houses, HeroHouse, HousesLeft),
+	populate_world(HousesLeft).
 
-create_family(Char, MotherStatus, MID, FatherStatus, FID, SiblingNo) :-
-	true.
-	/*create_person('Mother', MID, MotherStatus),
-	create_person('Father', FID, FatherStatus),
+populate_world(_).
+
+create_family(Char, MID, FID, SiblingNo, FamID) :-
+	create_person('Mother', MID),
+	create_person('Father', FID),
 	assert_story(mother(Char, MID)),
 	assert_story(father(Char, FID)),
 	create_siblings(Char, MID, FID, SiblingNo, Siblings),
 	generate_id('family', FamID),
-	assert_story(family(FamID, [MID, FID, Char|Siblings])),
-	(
-		FatherStatus = dead,
-		Homeowner = MID
-		;
-		Homeowner = FID
-	),
-	central_location(Loc, _),
-	create_family_home(MID, Loc).*/
+	assert_story(family(FamID, [MID, FID, Char|Siblings])).
 
-create_family_home(_, _).
 create_siblings(_, _, _, 0, []).
 create_siblings(Char, MID, FID, SiblingNo, [SID|Sibs]) :-
-	random_member(FChance, [dead,alive,alive,alive,alive]),
-	create_person('Sibling', SID, FChance),
+	create_person('Sibling', SID),
 	assert_story(sibling(Char, SID)),
 	assert_story(mother(SID, MID)),
 	assert_story(father(SID, FID)),
 	Sib2 is SiblingNo-1,
 	create_siblings(Char, MID, FID, Sib2, Sibs).
 
+%% stepping
+
+
+continue_plot(In) :-
+	step_forward,
+	write_debug_message('Do you wish to continue? (y/n)', []),
+	read(In),
+	(
+		In = n, !
+		;
+		In = y,
+		story_precondition(_), !,
+		continue_plot(In)
+		;
+		true
+	).
 
 step_forward :-
 	findall(P, story_precondition(P), Conds),
@@ -280,6 +294,12 @@ known_about_recently(Char, Location) :-
 	Diff is CTime - Time, !,
 	Diff < 5.
 
+talked_recently(Char, Char2) :-
+	talked(Char, Char2, Time),
+	current_time(CTime),
+	Diff is CTime - Time, !,
+	Diff < 5.
+
 % Actions
 do_action(Char, eat(Item)) :-
 	id_name(Char, CName),
@@ -329,6 +349,8 @@ do_action(Char, pick_up(Item)) :-
 	),
 	complete_goal(Char, pick_up(Item)).
 	
+do_action(Char, talk(Char2)) :-
+	false.
 
 do_action(Char, X) :-
 	id_name(Char, Name),
@@ -365,6 +387,7 @@ find_item_type(Char, _, Priority) :-
 	location(Char, Location),
 	location(Char2, Location),
 	character(Char2),
+	\+ talked_recently(Char, Char2),
 	Char \= Char2,
 	Priority2 is Priority+1,
 	create_goal(Char, talk(Char2), Priority2).
@@ -384,10 +407,11 @@ find_item_type(Char, Type, Priority) :-
 	create_goal(Char, explore, Priority2).
 
 pick_up(Char, Item) :-
-	location(Item, Loc),
+	location(Char, Location),
+	location(Item, Location),
 	Char \= Item,
 	retract_story(location(Item, _)),
-	broadcast_assert_story(location(Item, Char), Loc).
+	broadcast_assert_story(location(Item, Char), Location).
 
 has_item(Char, Type, Item) :-
 	location(Item, Char),

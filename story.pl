@@ -5,8 +5,10 @@
 	current_time/1, 
 	contains/2,
 	story_precondition/1,
-	hero/1, region/1,
-	location/2, central_location/2, id_name/2, property_name/2, adjacent/3]).
+	hero/1, region/1, sibling/2, mother/2, father/2, family/2,
+	house/1, village/1,
+	encompassed_by/2, talked/3, initial_description/0,
+	location/2, id_name/2, property_name/2, adjacent/3]).
 
 :- use_module(utils).
 
@@ -23,12 +25,19 @@
 :- dynamic need/3.
 :- dynamic character_goal/3.
 
-:- dynamic central_location/2.
-
 :- dynamic sibling/2.
 :- dynamic mother/2.
 :- dynamic father/2.
+:- dynamic family/2.
 
+:- dynamic initial_description/0.
+
+:- dynamic house/1.
+
+:- dynamic encompassed_by/2.
+:- dynamic talked/3.
+:- dynamic house/1.
+:- dynamic village/1.
 :- dynamic story_precondition/1.
 :- dynamic hero/1.
 :- dynamic region/1.
@@ -42,10 +51,10 @@ believes(Char, Thing) :-
 
 current_time(1).
 
-location(X, Y) :-
+encompassed_by(X, Y) :-
 	region(Y),
-	fact_story(location(X, Loc)),
-	location(Loc, Y).
+	location(X, Loc),
+	encompassed_by(Loc, Y).
 
 opposite_direction(west, east).
 opposite_direction(north, south).
